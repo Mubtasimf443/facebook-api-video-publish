@@ -1,0 +1,3 @@
+/video/*
+/.env
+/node_modules

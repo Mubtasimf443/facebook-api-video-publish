@@ -1,0 +1,36 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Video Upload</title>
+</head>
+<body>
+    <button class="Upload"> Upload</button>
+    <script>
+        let button=document.querySelector('.Upload');
+        button.onclick=function(event){
+            event.preventDefault();
+            let fbuploader_video_file_chunk = '4:dmlkZW8ubXA0:dmlkZW8vbXA0:ARaDQLkKz937YMdhksl0hLZPm0oxYACRnYcFnUoJPFDl74IKaZWpjVJwvyCRX84_bBVLHpQYhTVaUScTsE1GdVZz03VdJnvHwReqHLpNS_9phg:e:1734526006:563215303148988:100090786105187:ARbjwkp1tcK0vib2GOY\n' +
+                '4:dmlkZW8ubXA0:dmlkZW8vbXA0:ARZlWevw_PC4Koxs9VKjx7VhbNhLl3mx9l_c7LOvtalENSoHjGeN7xM4L5YV0ROhiYQvWHLcDlsTx-4L61SKXT-OGVUUIqA4msq3IGkhie4OmQ:e:1734526009:563215303148988:100090786105187:ARbvfXubZdS1OgAQSPE\n' +
+                '4:dmlkZW8ubXA0:dmlkZW8vbXA0:ARYHvZ40MB7wWcdlpZV7xX44kzWQMt3u6YeRGQnEIMnHrAbdC1aU9_GrQMAtcrzwFHSHhndLKAAPuJAwARV9dfbO-VgGm9mV8XHSmcBxV0wbGw:e:1734526012:563215303148988:100090786105187:ARbsaLrYrA7C7pi61Iw\n' +
+                '4:dmlkZW8ubXA0:dmlkZW8vbXA0:ARY3zPvM6DuPv8sXGfaSancg3C_W87k15HySLcaf-SIhzfRinsAuqHaWP6VzXUmGHB3yHZ7_8IwkomOIzDDGU-CF-8zAFCnyM-ELARoH9mdEqA:e:1734526015:563215303148988:100090786105187:ARacGC4qdLpcTYcv-II\n'+
+                '4:dmlkZW8ubXA0:dmlkZW8vbXA0:ARaouznHJO4vF1ZKIJDEh9ZMErSmh7EqRdHX_g8eBW68PWSNeJCKS_5HHiOUJExm6610n8tBz3g2f7wPreQtIuALUHjchemrqQ3jGHYbxZephA:e:1734526018:563215303148988:100090786105187:ARa8PhJArBfsET1tiPU\n' +
+                '4:dmlkZW8ubXA0:dmlkZW8vbXA0:ARZQW98j__8aneAXXf7DOoce-w-SEXgFGAnIr2FjlwkzcDmlFUYdTU-6WXbpWatv3k2VatsH_QAuaeuZa8z-tMiMT4TVZKbW9kq2M2gdJl8E-g:e:1734526020:563215303148988:100090786105187:ARao7Z7ztgG3tlbGvI0';
+            let form =new FormData();
+            let PAGE_ID=190035777531639;
+            let access_token='EAAIAPcgThbwBO8VHaHLHsqWkbaizoPexTERGFJSuggQVgYfPHLvUYNiEVbSZAjdXZBohBkXqcxZA8FPH4vZAszfzp4FEsZATxPKxgjYZBcL04DdON4GqDEAZBf1ForqzZCFXXveRhZAoDpSZClh46XjiZCRLYZCeT3FK1QIHZBaMwBPIBQoC27LaZCrOAchhvu56aBhHdKBd2OYsjCd3RZCKiZA85VORQtyAUPGJCfceZBHoULqepe3QFAESFAFiu';
+            form.append('access_token',access_token);
+            form.append('title','By the marcy of Allah , This video will be publish Insha Allah');
+            form.append('description','By the marcy of Allah , This video will be publish Insha Allah');
+            form.append('fbuploader_video_file_chunk',fbuploader_video_file_chunk);
+            fetch(`https://graph-video.facebook.com/v21.0/${PAGE_ID}/videos`,{
+                method:'POST',
+                body:form
+            })
+            .then(res=> res.json())
+            .then(Response=> console.log(Response))
+            .catch(error => console.log(error))
+        }
+    </script>
+</body>
+</html>

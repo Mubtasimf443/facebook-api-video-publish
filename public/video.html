@@ -1,0 +1,19 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Upload</title>
+</head>
+<body>
+    <button class="upload">Uplaod Video</button>
+    <script>
+        let button=document.querySelector('.upload');
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            fetch(window.location.origin+'/video',{
+                method:'POST'
+            })
+        })
+    </script>
+</body>
+</html>

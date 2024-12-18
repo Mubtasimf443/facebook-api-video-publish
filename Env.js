@@ -17,4 +17,7 @@ export const REDIRECT_URI=process.env.REDIRECT_URI
 export const FACEBOOK_CLIENT_SECRET=process.env.FACEBOOK_CLIENT_SECRET
 export const FACEBOOK_GRAPH_API=process.env.FACEBOOK_GRAPH_API
 export const FACEBOOK_GRAPH_VERSION=process.env.FACEBOOK_GRAPH_VERSION
+export const FB_USER_ID=529780633391469;
 export const require=createRequire(import.meta.url);
+export const IG_ID=process.env.IG_ID
+export const FACEBOOK_PAGE_ID=process.env.FACEBOOK_PAGE_ID

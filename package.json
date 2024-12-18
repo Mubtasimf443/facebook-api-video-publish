@@ -11,12 +11,13 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "awaiter.js": "^1.0.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "formidable": "^3.5.2",
     "morgan": "^1.10.0",
     "node-fetch": "^3.3.2",
-    "string-player": "^1.0.3"
+    "string-player": "^1.0.4"
   },
   "type": "module"
 }

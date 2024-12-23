@@ -3,16 +3,19 @@
 InshaAllah, By his marcy I will Gain Success 
 */
 
-import path from 'path';
+import path, { resolve } from 'path';
 import { __dirname, FACEBOOK_APP_ID, FACEBOOK_CLIENT_SECRET, FACEBOOK_PAGE_ID, FB_USER_ID, IG_ID, REDIRECT_URI, require } from './Env.js'
 import express from 'express'
 import fetch, { FormData } from 'node-fetch';
-import { log } from 'console';
+import { error, log } from 'console';
 import fs from 'fs'
 import initializeVideoUplaod from './controlars/fb/initializeVideoUplaod.js';
 import { breakJsonData, makeUrlWithParams } from 'string-player';
 import Awaiter from 'awaiter.js';
 import VideoUploader from './controlars/fb/videoUpload.js';
+import Facebook from './Facebook.js';
+import catchError, { namedErrorCatching } from './controlars/fb/catchError.js';
+import Instagram from './Instagram.js';
 
 
 
@@ -21,221 +24,142 @@ const app = express();
 app.use(express.static(path.resolve(__dirname, './public')))
 
 
+let fb=new Facebook({
+    client_id :FACEBOOK_APP_ID,
+    client_secret :FACEBOOK_CLIENT_SECRET,
+    redirect_uri :REDIRECT_URI,
+})
+
+
 app.get('/', (req, res) => res.redirect('/Auth.html'));
 
 
 app.get("/facebook/login", (req, res) => {
-    let params = new URLSearchParams()
-    let url = makeUrlWithParams(`https://www.facebook.com/v21.0/dialog/oauth`, {
-        client_id: FACEBOOK_APP_ID,
-        redirect_uri: REDIRECT_URI,
-        state: 'csrf_token',
-        scope: [
-            'publish_video',
-            'pages_read_engagement',
-            'pages_manage_metadata',
-            'pages_manage_posts',
-            'pages_show_list',
-            'instagram_basic',
-            'instagram_content_publish',
-            'instagram_manage_insights',
-            'read_insights',
-            'business_management',
-            'pages_read_user_content'
-        ].join(',')
-    });
-    res.redirect(url);
+    res.redirect(fb.getAuthUrl());
 });
 
-async function getUserId(access_token) {
-    if (!access_token) throw 'access token is undefined on getUserId function'
-    let response=await fetch(`https://graph.facebook.com/me?access_token=${access_token}`);
-    response=await response.json();
-    console.log(response);
-    if (response.error || !response.id) throw (response.error ? response.error :response);
-    return response.id;
-}
-async function getPageAccessToken(user_id,access_token) {
-    if (!access_token) throw 'access token is undefined on getUserId function'
-    if (!user_id) throw 'user id is undefined on getUserId function'
-    let response=await fetch(`https://graph.facebook.com/v21.0/${user_id}/accounts?access_token=${access_token}`);
-    response=await response.json();
-    log(response)
-    if (response.error || !response.data) throw (response.error ? response.error : response);
-    if (response.data.length===0 || !response.data[0].access_token  ) throw 'User has No Page , please create a page'
-    if (response.data[0].access_token) return response.data[0].access_token
-}
 app.get('/facebook/callback', async function (req, res) {
     try {
-        let { code } = req.query,
-        writingObject={
-            user_access_token :undefined,
-            page_access_token:undefined,
-            expires_in:undefined,
-            user_id :undefined
-        };
+        let { code } = req.query, writingObject = new Object();
+
         if (!code) return res.status(400).send("Authorization code missing");
-        let params = new URLSearchParams({
-            client_id: FACEBOOK_APP_ID,
-            redirect_uri: REDIRECT_URI,
-            client_secret: FACEBOOK_CLIENT_SECRET,
-            code,
-        });
-        let response = await fetch('https://graph.facebook.com/v21.0/oauth/access_token?' + params.toString(), {});
-        response = await response.json();
-        log('// first step')
-        console.log(response)
-        if (response.error || !response.access_token) throw (response.error ? response.error :response);
-        if ( response.access_token)  {
-            writingObject.user_access_token = response.access_token;
-            writingObject.expires_in=response.expires_in;
-        }
-        if (writingObject.user_access_token) {
-            log('// second step')
-            writingObject.user_id=await getUserId(writingObject.user_access_token);
-            log('// third step')
-            writingObject.page_access_token=await getPageAccessToken(writingObject.user_id , writingObject.user_access_token);
-            let data=JSON.stringify(writingObject);
-            data=breakJsonData(data)
-            fs.writeFileSync(path.resolve(__dirname,'./fb.json'),data);
-            return res.redirect('/account.html');
-        }
+
+
+        let access_token = await fb.getAccessToken(code);
+        writingObject.user_access_token = access_token;
+        
+        let user_id=await fb.getUserID(access_token);
+
+        let page=await fb.getPages(user_id,access_token);
+
+        writingObject.user_id=user_id;
+        writingObject.page_id=page.id;
+        writingObject.page_access_token=page.access_token;
+        
+
+
+
+        let P = new fb.Page({ pageid: writingObject.page_id, page_accessToken: writingObject.page_access_token });
+        writingObject['Instagram_id']=await P.getLinkedInstagramAccounts(); 
+        
+        log(writingObject);
+
+        fs.writeFileSync(resolve(__dirname,'./fb.json'),breakJsonData(writingObject));
+        return res.status(200).send(breakJsonData(writingObject));
+
+
+
     } catch (error) {
-        console.error(error);
-        if (typeof error === 'string') {
-            return res.json({
-                hasError: true,
-                error: {
-                    massage: error
-                }
-            })
-        }
-        return res.json({
-            hasError: true,
-            error: error
-        })
+        catchError(res,error)
     }
 
 })
-
-
 
 app.get('/video', 
     //the idea of publishing video like this to facebook page was taken from stackOverflow
     //that is the reason i have keep the name of function stackOverflowIdeaFacebookPageVideoUpload(){}
-    async function stackOverflowIdeaFacebookPageVideoUpload(req,res) {
-        let access_token=require('./fb.json').page_access_token;
-        let params=(new URLSearchParams({
-            access_token,
-            file_url :'https://gojushinryu.com/video-for-download',
-            description :'Insha Allah , bY the marcy of Allah ,video will be published',
-            published:true
-        })).toString();
-        let response=await fetch(`https://graph.Facebook.com/v21.0/me/videos?${params}`,{method:'POST'});
-        response=await response.json();
-        return res.json(response)
+    async function (req,res) {
+        try {
+            let page =new fb.Page({
+                page_accessToken :require('./fb.json').page_access_token,
+                pageid :require('./fb.json').page_id 
+            });
+            let id= await page.uploadVideo({
+                file_url :'https://gojushinryu.com/video-for-download',
+                description :"test video for api practice"
+            })
+            return res.json({id});
+        } catch (error) {
+            catchError(res,error)
+        }
     }
+    
 )
 
 app.get('/ig/single/image', async function (req, res) {
     try {
-        let params = new URLSearchParams({
-            image_url: 'https://gojushinryu.com/img/about_us_article_image.jpg',
-            caption: 'Hello , I am testing instegram api',
-            access_token: require('./fb.json').access_token
+
+        let ints=new Instagram({
+            accessToken :require('./fb.json').user_access_token,
+            id:require('./fb.json').Instagram_id
         })
-        let response = await fetch(`https://graph.facebook.com/v21.0/${IG_ID}/media?${params.toString()}`, { method: 'POST' });
-        response = await response.json();
-        log(response)
-        if (response.id) {
-            params = new URLSearchParams({
-                creation_id: response.id,
-                access_token: require('./fb.json').access_token
-            })
-            let newResponse = await fetch(`https://graph.facebook.com/v21.0/${IG_ID}/media_publish?${params.toString()}`, { method: 'POST' });
-            newResponse = await newResponse.json();
-            console.log('newResponse')
-            console.log(newResponse)
-        }
+
+        let creation_id=await ints.uploadSingleImage({
+            caption: 'Hello , I am testing instegram api',
+            image_url: 'https://gojushinryu.com/img/aboutusarticleImage.jpg'
+        })
+        
+        let post_id=await ints.publishCreation(creation_id);
+
+        return res.json({post_id});
     } catch (error) {
-        console.error(error)
+        catchError(res,error);
     }
 })
+
+
 app.get('/ig/images', async function (req, res) {
     try {
-        let caption = 'This a test carusel content upload'
-        let array = [
-            'https://gojushinryu.com/img/IMG-20240907-WA0006.jpg',
-            'https://gojushinryu.com/img/IMG-20240907-WA0008.jpg'
-        ];
-        let carousel_contents = [];
-        for (let i = 0; i < array.length; i++) {
-            let params = new URLSearchParams({
-                is_carousel_item: true,
-                image_url: array[i],
-                access_token: require('./fb.json').access_token
-            })
-            let response = await fetch(`https://graph.facebook.com/v21.0/${IG_ID}/media?${params.toString()}`, { method: 'POST' });
-            response = await response.json();
-            console.log(response);
-            if (response.error) throw response.error
-            if (response.id) carousel_contents.push(response.id)
-        }
-        let params = new URLSearchParams({
-            caption,
-            media_type: "CAROUSEL",
-            children: carousel_contents,
-            access_token: require('./fb.json').access_token,
-
+        let instagram=new Instagram({
+            accessToken :require('./fb.json').user_access_token, id :  require('./fb.json').Instagram_id 
         });
-        let requestUrl = `https://graph.facebook.com/v21.0/${IG_ID}/media?${params.toString()}`;
-        console.log({ requestUrl })
-        let response = await fetch(requestUrl, { method: 'POST' });
-        response = await response.json();
-        console.log(response);
-        if (response.error) throw response.error
-        let creation_id = response.id;
-        if (creation_id) {
-            let params = new URLSearchParams({
-                creation_id: creation_id,
-                access_token: require('./fb.json').access_token
-            });
-            let response = await fetch(`https://graph.facebook.com/v21.0/${IG_ID}/media_publish?${params.toString()}`, { method: 'POST' });
-            response = await response.json();
-            console.log(response);
-            if (response.error) throw response.error
-            if (response.id) {
-                return res.status(201).json({
-                    success: true,
-                    publish_id: response.id
-                })
-            }
-        }
-        if (!creation_id) throw 'error in caruser publish'
+        let post_id= await instagram.createCarusel({
+            images: ['https://gojushinryu.com/img/IMG-20240907-WA0006.jpg', 'https://gojushinryu.com/img/IMG-20240907-WA0008.jpg'],
+            caption: "testing instagram api"
+        });
+        res.json({post_id});
+        return;
     } catch (error) {
-        console.error(error);
-        if (typeof error === 'string') {
-            return res.json({
-                hasError: true,
-                error: {
-                    massage: error
-                }
-            })
-        }
-        return res.json({
-            hasError: true,
-            error: error
-        })
+        return catchError(res,error);
     }
 })
 app.get('/ig/video', async function (req, res) {
     try {
+        let ints=new Instagram({
+            accessToken :require('./fb.json').user_access_token,
+            id:require('./fb.json').Instagram_id
+        });
+        let creation_id=await ints.uploadReel({video_url:'https://gojushinryu.com/video-for-download',caption:'testing video upload'});
+        await ints.checkFinishUploadOrNot(creation_id);
+        let post_id=await ints.publishCreation(creation_id);
+        return res.json({post_id});
+    } catch (error) {
+        return catchError(res,error);
+    }
+ 
+    try {
+
+
+
+
         let params = (new URLSearchParams({
             video_url: 'https://gojushinryu.com/video-for-download',
             media_type: 'REELS',
             caption: 'Testing video upload',
             access_token: require('./fb.json').access_token
         })).toString();
+
+
         let response = await fetch(`https://graph.facebook.com/v21.0/${IG_ID}/media?${params}`, { method: 'POST' });
         response = await response.json();
         console.log(response)
@@ -256,6 +180,7 @@ app.get('/ig/video', async function (req, res) {
         }
 
         if (containerID) {
+
             for (let index = 0; index < 30; index++) {
                 let status = await checkFinishReelsUpload(containerID);
                 if (status) {
@@ -265,15 +190,18 @@ app.get('/ig/video', async function (req, res) {
                     await Awaiter(3000);
                 }
             };
+
             let params = (new URLSearchParams({
                 creation_id: containerID,
                 access_token: require('./fb.json').access_token
             })).toString()
+
             let response = await fetch(`https://graph.facebook.com/v21.0/${IG_ID}/media_publish?${params}`, { method: 'POST' });
             response = await response.json();
             console.log({
                 ...response
             });
+
 
             if (response.error) throw response.error
             if (!response.id) throw response
@@ -284,72 +212,54 @@ app.get('/ig/video', async function (req, res) {
         }
 
     } catch (error) {
-        console.error(error);
-        if (typeof error === 'string') {
-            return res.json({
-                hasError: true,
-                error: {
-                    massage: error
-                }
-            })
-        }
-        return res.json({
-            hasError: true,
-            error: error
-        })
+        catchError(res, error);
+        
     }
 })
 
 app.get('/fb/image', async function (req, res) {
     try {
+        let page =new fb.Page({
+            page_accessToken :require('./fb.json').page_access_token,
+            pageid :require('./fb.json').page_id 
+        });
         let url = [
             'https://gojushinryu.com/img/IMG-20240907-WA0006.jpg',
             'https://gojushinryu.com/img/IMG-20240907-WA0008.jpg'
         ];
-        let access_token=require('./fb.json').page_access_token;
         let facebookImagesId = [];
+
         for (let i = 0; (i < url.length && i <=9); i++) {
-            let params=(new URLSearchParams({
-                published: false,
-                url: url[i],
-                access_token 
-            })).toString()
-            let response = await fetch('https://graph.facebook.com/v21.0/' + FACEBOOK_PAGE_ID + '/photos?'+params, { method: 'POST' });
-            response = await response.json();
-            console.log(response)
-            if (response.error) throw response.error
-            if (!response.id) throw response
-            facebookImagesId.push({ media_fbid: response.id });
+            let media_fbid=await page.uploadPhoto(url[i]).then(id=> id.media_fbid).catch(error => namedErrorCatching('upload photo error', error));
+            facebookImagesId.push({media_fbid});
         }
-        if (facebookImagesId.length === 0) throw 'No image was updated'
-        let response = await fetch('https://graph.facebook.com/v21.0/' + FACEBOOK_PAGE_ID + '/feed', {
-            method: 'POST',
-            headers: {
-                "Content-Type": 'application/json'
-            },
-            body: JSON.stringify({
-                published: true,
-                message: 'Test a api',
-                attached_media: facebookImagesId,
-                access_token
-            })
-        });
-        response = await response.json();
-        return res.status(201).json({ ...response })
+
+        let id=await page.postWithImages(facebookImagesId,'testing images upload').catch(e => namedErrorCatching('post-images-error',e));
+        
+        return res.status(201).json({ id })
     } catch (error) {
-        console.error(error);
-        if (typeof error === 'string') {
-            return res.json({
-                hasError: true,
-                error: {
-                    massage: error
-                }
-            })
+        catchError(res,error);
+    }
+})
+
+app.get('/my-info', async function (req, res) {
+    try {
+        let response = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${require('./fb.json').user_access_token}`);
+        response = await response.json();
+        let access_token=response.data[0].access_token,
+        page_id=response.data[0].id;
+        response=await fetch(`https://graph.facebook.com/v21.0/${page_id}?fields=instagram_business_account&access_token=${access_token}`);
+        response=await response.json();
+        if (response.instagram_business_account?.id){
+            let ig_id=response.instagram_business_account.id;
+            log(ig_id);
         }
-        return res.json({
-            hasError: true,
-            error: error
-        })
+        else {
+            throw 'error , failed to gain intagram ig id'
+        }
+
+    } catch (error) {
+        catchError(res,error);
     }
 })
 

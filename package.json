@@ -17,7 +17,7 @@
     "formidable": "^3.5.2",
     "morgan": "^1.10.0",
     "node-fetch": "^3.3.2",
-    "string-player": "^1.0.4"
+    "string-player": "^1.0.6"
   },
   "type": "module"
 }
